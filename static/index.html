@@ -145,29 +145,10 @@ const KID_PAL = [
    ]},
 ];
 
-const ADULT_PAL = [
-  {type:'model', label:'Model', emoji:'🤖', color:'#7C3AED',
-   params:[{n:'model',l:'Model',t:'select',opts:[{v:'gemini-2.0-flash',l:'Gemini 2.0 Flash'},{v:'gemini-1.5-pro',l:'Gemini 1.5 Pro'},{v:'gemini-1.5-flash',l:'Gemini 1.5 Flash'}],d:'gemini-2.0-flash'}]},
-  {type:'system', label:'System Prompt', emoji:'⚙️', color:'#0284C7',
-   params:[{n:'prompt',l:'System prompt',t:'textarea',d:'You are a helpful assistant.'}]},
-  {type:'user_msg', label:'User Message', emoji:'💬', color:'#059669',
-   params:[{n:'message',l:'Message',t:'textarea',d:'What is machine learning?'}]},
-  {type:'context', label:'Add Context', emoji:'📄', color:'#0891B2',
-   params:[{n:'context',l:'Context / document',t:'textarea',d:'The user is a beginner learning AI.'}]},
-  {type:'temperature', label:'Temperature', emoji:'🌡️', color:'#D97706',
-   params:[{n:'value',l:'0 = focused  →  1 = creative',t:'slider',min:0,max:1,step:0.1,d:0.7}]},
-  {type:'max_tokens', label:'Max Tokens', emoji:'📏', color:'#BE185D',
-   params:[{n:'tokens',l:'Max tokens',t:'num',min:50,max:2000,d:400}]},
-  {type:'few_shot', label:'Few-Shot', emoji:'🎯', color:'#DC2626',
-   params:[
-     {n:'ex1q',l:'Example 1 — input',t:'text',d:'What is 2+2?'},
-     {n:'ex1a',l:'Example 1 — output',t:'text',d:'4'},
-     {n:'ex2q',l:'Example 2 — input',t:'text',d:'Capital of France?'},
-     {n:'ex2a',l:'Example 2 — output',t:'text',d:'Paris'}
-   ]},
-  {type:'json_mode', label:'JSON Output', emoji:'📦', color:'#0891B2',
-   params:[{n:'schema',l:'Expected fields (comma separated)',t:'text',d:'name, score, reason'}]},
-];
+// Adult uses task-driven UI, not blocks
+const ADULT_PAL = [];
+const CAT_ICONS = {text:'✍️',image:'🎨',vision:'👁️',rag:'📄',chatbot:'💬',code:'💻',advanced:'🚀'};
+const CAT_COLORS_ADULT = {text:'#7C3AED',image:'#DC2626',vision:'#0284C7',rag:'#059669',chatbot:'#D97706',code:'#0891B2',advanced:'#BE185D'};
 
 const CAT_COLORS = {coding:'#0284C7',math:'#059669',science:'#7C3AED',english:'#D97706',ai:'#7C3AED',data:'#0284C7',infra:'#059669'};
 
@@ -231,7 +212,10 @@ let S = {
   uname:'', upwd:'', loginErr:'',
   tasks:[], filteredCat:'all',
   currentTask:null, canvas:[], msgs:[], chatInput:'',
-  loading:false, output:'', activeTab:'blocks', nextId:1
+  loading:false, output:'', activeTab:'blocks', nextId:1,
+  // adult fields
+  adultInstruction:'', adultInput:'', adultImageB64:null,
+  chatbotMsgs:[], chatbotSystem:'',
 };
 function ss(p){S=Object.assign({},S,p);render();}
 
@@ -260,46 +244,64 @@ async function doLogin(){
 }
 
 // ── Run canvas ────────────────────────────────────────────────────────────
-async function runCanvas(){
-  if(!S.canvas.length){ss({output:'⚠️ Add some blocks first!'});return;}
-  if(S.user.role==='kid'){
-    let out='';S.canvas.forEach(b=>{out+=`── ${b.emoji} ${b.label} ──\n${runKidBlock(b)}\n`;});
-    ss({output:out.trim(),activeTab:'output'});
-  } else {
-    const msgB=S.canvas.find(b=>b.type==='user_msg');
-    if(!msgB){ss({output:'⚠️ Add a User Message block!'});return;}
-    const modelB=S.canvas.find(b=>b.type==='model');
-    const sysB=S.canvas.find(b=>b.type==='system');
-    const ctxB=S.canvas.find(b=>b.type==='context');
-    const tmpB=S.canvas.find(b=>b.type==='temperature');
-    const tokB=S.canvas.find(b=>b.type==='max_tokens');
-    const fsB=S.canvas.find(b=>b.type==='few_shot');
-    const jB=S.canvas.find(b=>b.type==='json_mode');
-    let sys=sysB?.params?.prompt||'';
-    if(ctxB)sys+=(sys?'\n\n':'')+ctxB.params.context;
-    if(jB)sys+=(sys?'\n\n':'')+'Respond ONLY with valid JSON. Fields: '+jB.params.schema;
-    let userMsg=msgB.params.message;
-    if(fsB)userMsg=`Example 1:\nQ: ${fsB.params.ex1q}\nA: ${fsB.params.ex1a}\n\nExample 2:\nQ: ${fsB.params.ex2q}\nA: ${fsB.params.ex2a}\n\nNow:\nQ: ${userMsg}`;
-    ss({loading:true,output:'⏳ Calling API via backend...',activeTab:'output'});
-    try{
-      const data = await apiFetch('/api/llm',{
-        model: modelB?.params?.model||'claude-haiku-4-5-20251001',
-        system: sys||undefined,
-        messages:[{role:'user',content:userMsg}],
-        temperature: tmpB?parseFloat(tmpB.params.value):0.7,
-        max_tokens: tokB?parseInt(tokB.params.tokens):400,
-      });
-      const txt = data.text || JSON.stringify(data,null,2);
-      let out=`🤖 ${modelB?.params?.model||'gemini-2.0-flash'}\n`;
-      if(sys)out+=`⚙️  ${sys.slice(0,80)}${sys.length>80?'…':''}\n`;
-      out+=`\n─── Response ───\n${txt}`;
-      ss({output:out});
-    }catch(e){ss({output:'❌ '+e.message});}
-    ss({loading:false});
+// ── Adult state
+// adultInstruction, adultInput, adultImageB64, chatbotMsgs, chatbotSystem live in S
+
+async function runAdultTask(){
+  const task = S.currentTask;
+  const tt = task.task_type || 'text';
+  const instr = S.adultInstruction || task.starter_instruction || '';
+  const inp   = S.adultInput      || task.starter_input      || '';
+
+  ss({loading:true, output:'⏳ Running…', adultImageB64:null, activeTab:'output'});
+  try {
+    if(tt === 'image') {
+      const data = await apiFetch('/api/run/image', {prompt: instr});
+      ss({loading:false, adultImageB64: data.image_b64, output:''});
+    } else if(tt === 'vision') {
+      const data = await apiFetch('/api/run/vision', {instruction: instr, image_url: inp.trim()});
+      ss({loading:false, output: data.text});
+    } else if(tt === 'rag') {
+      const data = await apiFetch('/api/run/rag', {question: instr, document: inp});
+      ss({loading:false, output: data.text});
+    } else if(tt === 'chatbot') {
+      // first message seeds the conversation
+      if(!S.chatbotMsgs || S.chatbotMsgs.length===0){
+        const sys = S.adultInstruction || task.starter_instruction || '';
+        const firstUser = inp || task.starter_input || '';
+        const msgs = firstUser ? [{role:'user',content:firstUser}] : [];
+        const data = await apiFetch('/api/run/chatbot', {system_prompt:sys, messages:msgs});
+        const newMsgs = [...msgs, {role:'assistant',content:data.text}];
+        ss({loading:false, chatbotMsgs:newMsgs, chatbotSystem:sys, output:'', activeTab:'output'});
+      }
+    } else {
+      // text / code / advanced / rag-as-text
+      const data = await apiFetch('/api/run/text', {instruction: instr, input: inp, temperature:0.7});
+      ss({loading:false, output: data.text});
+    }
+  } catch(e) {
+    ss({loading:false, output:'❌ '+e.message});
   }
 }
 
-// ── Tutor ─────────────────────────────────────────────────────────────────
+async function sendChatbotMsg(){
+  const msg = (S.chatInput||'').trim();
+  if(!msg||S.loading) return;
+  const msgs = [...(S.chatbotMsgs||[]), {role:'user',content:msg}];
+  ss({chatbotMsgs:msgs, chatInput:'', loading:true});
+  try {
+    const data = await apiFetch('/api/run/chatbot', {
+      system_prompt: S.chatbotSystem || S.currentTask.starter_instruction || '',
+      messages: msgs
+    });
+    ss({chatbotMsgs:[...msgs,{role:'assistant',content:data.text}], loading:false});
+  } catch(e) {
+    ss({chatbotMsgs:[...msgs,{role:'assistant',content:'❌ '+e.message}], loading:false});
+  }
+  scrollChat();
+}
+
+// ── Tutor chat ─────────────────────────────────────────────────────────────
 async function sendChat(){
   if(!S.chatInput.trim()||S.loading)return;
   const um=S.chatInput.trim();
@@ -310,8 +312,8 @@ async function sendChat(){
       role: S.user.role,
       task_id: S.currentTask.id,
       messages: newMsgs.map(m=>({role:m.role,content:m.content})),
-      canvas_blocks: S.canvas.map(b=>b.label),
-      last_output: S.output?.slice(0,200)||'',
+      current_instruction: S.adultInstruction||'',
+      last_output: (S.output||'').slice(0,200),
     });
     const reply = data.text || 'Try again.';
     ss({msgs:[...newMsgs,{role:'assistant',content:reply}]});
@@ -371,6 +373,7 @@ function renderTasks(){
   const accent=isKid?'#059669':'#7C3AED';
   const tasks=S.filteredCat==='all'?S.tasks:S.tasks.filter(t=>t.cat===S.filteredCat);
   const cats=['all',...new Set(S.tasks.map(t=>t.cat))];
+  const colorFor = t => isKid?(CAT_COLORS[t.cat]||'#888'):(CAT_COLORS_ADULT[t.cat]||'#888');
   return el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden',height:'0'}},[
     el('div',{className:'topbar'},[
       el('div',{className:'logo'},['🧱 BlockCode']),
@@ -379,19 +382,20 @@ function renderTasks(){
       el('button',{className:'back-btn',onClick:()=>ss({view:'login',upwd:''})},['Sign out']),
     ]),
     el('div',{className:'tasks-wrap'},[
-      el('div',{className:'section-title'},[isKid?'👦 Python Tasks':'🎓 AI Engineering Tasks']),
-      el('div',{className:'section-sub'},[isKid?`${S.tasks.length} tasks · click to start`:`${S.tasks.length} tasks · build LLM pipelines`]),
-      el('div',{className:'cat-filter'},cats.map(cat=>
-        el('button',{className:'cat-btn'+(S.filteredCat===cat?' active':''),
+      el('div',{className:'section-title'},[isKid?'👦 Python for Kids':'🎓 Learn AI in 3 Weeks']),
+      el('div',{className:'section-sub'},[isKid?`${S.tasks.length} coding challenges · click to start`:`${S.tasks.length} real AI problems · prompting · image gen · RAG · chatbots · code`]),
+      el('div',{className:'cat-filter'},cats.map(cat=>{
+        const icon = isKid?'':((CAT_ICONS[cat]||'')+ ' ');
+        return el('button',{className:'cat-btn'+(S.filteredCat===cat?' active':''),
           style:S.filteredCat===cat?{background:accent,borderColor:accent}:{},
-          onClick:()=>ss({filteredCat:cat})},[cat==='all'?'All':cat])
-      )),
+          onClick:()=>ss({filteredCat:cat})},[icon+(cat==='all'?'All':cat)]);
+      })),
       el('div',{className:'tasks-grid'},tasks.map(t=>
         el('div',{className:'task-card',onClick:()=>startTask(t)},[
           el('div',{className:'t-num'},[`#${t.id}`]),
-          el('div',{className:'t-title'},[t.title]),
-          el('div',{className:'t-desc'},[t.desc]),
-          el('span',{className:'t-cat',style:{background:(CAT_COLORS[t.cat]||'#888')+'22',color:CAT_COLORS[t.cat]||'#888'}},[t.cat]),
+          el('div',{className:'t-title'},[isKid?'':(CAT_ICONS[t.cat]||'')+ ' '+t.title]),
+          el('div',{className:'t-desc'},[t.desc.split('.')[0]+'.']),
+          el('span',{className:'t-cat',style:{background:colorFor(t)+'22',color:colorFor(t)}},[t.cat]),
         ])
       )),
     ])
@@ -402,8 +406,15 @@ function startTask(task){
   const isKid=S.user.role==='kid';
   const msg=isKid
     ?`🎯 Task #${task.id}: ${task.title}\n\n${task.desc}\n\n💡 Hint: ${task.hints[0]}\n\nAdd blocks from the left, then hit ▶ Run!`
-    :`📋 Task #${task.id}: ${task.title}\n\n${task.desc}\n\n💡 Hint: ${task.hints[0]}\n\nBuild your pipeline, then hit ▶ Run.`;
-  ss({view:'solve',currentTask:task,canvas:[],output:'',msgs:[{role:'assistant',content:msg}],activeTab:'blocks'});
+    :`👋 Task #${task.id}: ${task.title}\n\n${task.desc}\n\n💡 Hint: ${task.hints[0]}\n\nEdit the instruction below (and input if needed), then hit ▶ Run.`;
+  ss({
+    view:'solve', currentTask:task, canvas:[], output:'', msgs:[{role:'assistant',content:msg}],
+    activeTab: isKid?'blocks':'output',
+    adultInstruction: task.starter_instruction||'',
+    adultInput: task.starter_input||'',
+    adultImageB64: null,
+    chatbotMsgs: [], chatbotSystem: task.starter_instruction||'',
+  });
 }
 
 // ── Render: Palette item ──────────────────────────────────────────────────
@@ -478,9 +489,7 @@ function renderSolve(){
       el('div',{style:{fontSize:'13px',fontWeight:'700',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[`#${t?.id} ${t?.title}`]),
       el('div',{style:{fontSize:'11px',color:'#999',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[t?.desc]),
     ]),
-    el('button',{className:'run-btn',style:{background:accent,opacity:S.loading?0.6:1},onClick:runCanvas},[
-      S.loading?el('span',{className:'spin'}):'▶ Run'
-    ]),
+    el('button',{className:'run-btn',style:{background:accent,opacity:S.loading?0.6:1},onClick:()=>{if(!S.canvas.length){ss({output:'⚠️ Add some blocks first!'});return;}let out='';S.canvas.forEach(b=>{out+=`── ${b.emoji} ${b.label} ──\n${runKidBlock(b)}\n`;});ss({output:out.trim(),activeTab:'output'});}},[S.loading?el('span',{className:'spin'}):'▶ Run']),
   ]));
 
   if(mobile){
@@ -513,7 +522,7 @@ function renderSolve(){
     } else {
       const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
       p.appendChild(el('div',{className:'ph'},['AI Tutor']));
-      appendChat(p,accent);
+      appendChat(p,accent,'tutor');
       content.appendChild(p);
       scrollChat();
     }
@@ -541,7 +550,7 @@ function renderSolve(){
     // Tutor
     const tp=el('div',{className:'tutor-panel',style:{width:w<1100?'250px':'290px'}});
     tp.appendChild(el('div',{className:'ph'},['🤖 AI Tutor']));
-    appendChat(tp,accent);
+    appendChat(tp,accent,'tutor');
     row.appendChild(tp);
     wrap.appendChild(row);
     scrollChat();
@@ -559,6 +568,289 @@ function appendChat(parent,accent){
   inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')sendChat();});
   ir.appendChild(inp);
   ir.appendChild(el('button',{className:'send-btn',style:{background:accent},onClick:sendChat},[S.loading?el('span',{className:'spin'}):'↗']));
+  parent.appendChild(ir);
+}
+
+function scrollChat(){setTimeout(()=>{const e=document.getElementById('ca');if(e)e.scrollTop=e.scrollHeight;},50);}
+
+// ── Main render ───────────────────────────────────────────────────────────
+function render(){
+  const app=document.getElementById('app');if(!app)return;
+  app.innerHTML='';
+  if(S.view==='login')app.appendChild(renderLogin());
+  else if(S.view==='tasks')app.appendChild(renderTasks());
+  else app.appendChild(renderSolve());
+}
+window.addEventListener('resize',render);
+render();
+</script>
+</body>
+</html>// ── Render: Solve ─────────────────────────────────────────────────────────
+function renderSolve(){
+  const isKid=S.user.role==='kid';
+  return isKid ? renderSolveKid() : renderSolveAdult();
+}
+
+// ── Kid solve (block-based, unchanged) ──────────────────────────────────
+function renderSolveKid(){
+  const accent='#059669';
+  const pal=KID_PAL;
+  const t=S.currentTask;
+  const w=window.innerWidth;
+  const mobile=w<700;
+  const wrap=el('div',{className:'solve-wrap'});
+  wrap.appendChild(el('div',{className:'topbar'},[
+    el('button',{className:'back-btn',onClick:()=>ss({view:'tasks',canvas:[],output:'',msgs:[]})},['← Tasks']),
+    el('div',{className:'topbar-mid'},[
+      el('div',{style:{fontSize:'13px',fontWeight:'700',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[`#${t?.id} ${t?.title}`]),
+      el('div',{style:{fontSize:'11px',color:'#999',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[t?.desc]),
+    ]),
+    el('button',{className:'run-btn',style:{background:accent,opacity:S.loading?0.6:1},onClick:()=>{
+      if(!S.canvas.length){ss({output:'⚠️ Add some blocks first!'});return;}
+      let out='';S.canvas.forEach(b=>{out+=`── ${b.emoji} ${b.label} ──\n${runKidBlock(b)}\n`;});
+      ss({output:out.trim(),activeTab:'output'});
+    }},[S.loading?el('span',{className:'spin'}):'▶ Run']),
+  ]));
+  if(mobile){
+    const tabs=[['blocks','🧩 Blocks'],['canvas',`📐 (${S.canvas.length})`],['output','▶ Output'],['tutor','🤖 Tutor']];
+    const tabBar=el('div',{className:'tab-bar'});
+    tabs.forEach(([id,label])=>{
+      tabBar.appendChild(el('button',{className:'tab'+(S.activeTab===id?' active':''),
+        style:S.activeTab===id?{color:accent,borderBottomColor:accent}:{},
+        onClick:()=>ss({activeTab:id})},[label]));
+    });
+    wrap.appendChild(tabBar);
+    const content=el('div',{style:{flex:'1',overflow:'hidden',display:'flex',flexDirection:'column'}});
+    if(S.activeTab==='blocks'){
+      const p=el('div',{className:'side-panel',style:{flex:'1',borderRight:'none'}});
+      p.appendChild(el('div',{className:'ph'},['Tap to add a block']));
+      const sc=el('div',{className:'pal-scroll'});pal.forEach(pb=>sc.appendChild(renderPalItem(pb)));
+      p.appendChild(sc);content.appendChild(p);
+    } else if(S.activeTab==='canvas'){
+      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+      p.appendChild(el('div',{className:'ph'},[`Canvas · ${S.canvas.length} blocks`]));
+      if(!S.canvas.length)p.appendChild(el('div',{className:'empty-hint'},['Add blocks from the Blocks tab']));
+      else{const sc=el('div',{className:'canvas-scroll'});S.canvas.forEach(b=>sc.appendChild(renderBlockCard(b)));p.appendChild(sc);}
+      content.appendChild(p);
+    } else if(S.activeTab==='output'){
+      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+      p.appendChild(el('div',{className:'ph'},['Output']));
+      if(S.output)p.appendChild(el('pre',{className:'out-pre',style:{flex:'1',maxHeight:'none'}},[S.output]));
+      else p.appendChild(el('div',{className:'out-empty'},['Hit ▶ Run']));
+      content.appendChild(p);
+    } else {
+      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+      p.appendChild(el('div',{className:'ph'},['AI Tutor']));
+      appendChat(p,accent,'tutor');content.appendChild(p);scrollChat();
+    }
+    wrap.appendChild(content);
+  } else {
+    const row=el('div',{className:'main-row'});
+    const pp=el('div',{className:'side-panel pal-panel'});
+    pp.appendChild(el('div',{className:'ph'},['Blocks']));
+    const ps=el('div',{className:'pal-scroll'});pal.forEach(pb=>ps.appendChild(renderPalItem(pb)));
+    pp.appendChild(ps);row.appendChild(pp);
+    const cc=el('div',{className:'canvas-col'});
+    const cp=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+    cp.appendChild(el('div',{className:'ph'},[`Canvas · ${S.canvas.length} block${S.canvas.length!==1?'s':''}`]));
+    if(!S.canvas.length)cp.appendChild(el('div',{className:'empty-hint'},['Tap a block on the left to add it']));
+    else{const sc=el('div',{className:'canvas-scroll'});S.canvas.forEach(b=>sc.appendChild(renderBlockCard(b)));cp.appendChild(sc);}
+    cc.appendChild(cp);
+    const op=el('div',{className:'out-panel'});
+    op.appendChild(el('div',{className:'ph'},['▶ Output']));
+    if(S.output)op.appendChild(el('pre',{className:'out-pre'},[S.output]));
+    else op.appendChild(el('div',{className:'out-empty'},['Hit ▶ Run']));
+    cc.appendChild(op);row.appendChild(cc);
+    const tp=el('div',{className:'tutor-panel',style:{width:w<1100?'250px':'290px'}});
+    tp.appendChild(el('div',{className:'ph'},['🤖 AI Tutor']));
+    appendChat(tp,accent,'tutor');row.appendChild(tp);
+    wrap.appendChild(row);scrollChat();
+  }
+  return wrap;
+}
+
+// ── Adult solve (task-driven) ────────────────────────────────────────────
+function renderSolveAdult(){
+  const accent='#7C3AED';
+  const t=S.currentTask;
+  const tt=t.task_type||'text';
+  const w=window.innerWidth;
+  const mobile=w<700;
+  const wrap=el('div',{className:'solve-wrap'});
+
+  wrap.appendChild(el('div',{className:'topbar'},[
+    el('button',{className:'back-btn',onClick:()=>ss({view:'tasks',canvas:[],output:'',msgs:[]})},['← Tasks']),
+    el('div',{className:'topbar-mid'},[
+      el('div',{style:{fontSize:'13px',fontWeight:'700',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},
+        [(CAT_ICONS[t.cat]||'')+' #'+t.id+' '+t.title]),
+      el('div',{style:{fontSize:'11px',color:'#999',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[t.desc.split('.')[0]]),
+    ]),
+    tt!=='chatbot'
+      ? el('button',{className:'run-btn',style:{background:accent,opacity:S.loading?0.6:1},onClick:runAdultTask},
+          [S.loading?el('span',{className:'spin'}):'▶ Run'])
+      : el('div',{style:{width:'60px'}}),
+  ]));
+
+  if(mobile){
+    const tabDefs = tt==='chatbot'
+      ? [['output','💬 Chat'],['tutor','🤖 Tutor']]
+      : [['input','✍️ Write'],['output','▶ Output'],['tutor','🤖 Tutor']];
+    const tabBar=el('div',{className:'tab-bar'});
+    tabDefs.forEach(([id,label])=>{
+      tabBar.appendChild(el('button',{className:'tab'+(S.activeTab===id?' active':''),
+        style:S.activeTab===id?{color:accent,borderBottomColor:accent}:{},
+        onClick:()=>ss({activeTab:id})},[label]));
+    });
+    wrap.appendChild(tabBar);
+    const content=el('div',{style:{flex:'1',overflow:'hidden',display:'flex',flexDirection:'column'}});
+    if(S.activeTab==='input'){
+      content.appendChild(renderAdultInput(t,tt,accent,true));
+    } else if(S.activeTab==='output'){
+      if(tt==='chatbot') content.appendChild(renderAdultChatbot(t,accent,true));
+      else content.appendChild(renderAdultOutput(t,tt,true));
+    } else {
+      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+      p.appendChild(el('div',{className:'ph'},['🤖 AI Tutor']));
+      appendChat(p,accent,'tutor');content.appendChild(p);scrollChat();
+    }
+    wrap.appendChild(content);
+  } else {
+    const row=el('div',{className:'main-row'});
+    if(tt!=='chatbot'){
+      row.appendChild(renderAdultInput(t,tt,accent,false));
+    }
+    if(tt==='chatbot'){
+      row.appendChild(renderAdultChatbot(t,accent,false));
+    } else {
+      row.appendChild(renderAdultOutput(t,tt,false));
+    }
+    const tp=el('div',{className:'tutor-panel',style:{width:w<1100?'250px':'290px'}});
+    tp.appendChild(el('div',{className:'ph'},['🤖 AI Tutor']));
+    appendChat(tp,accent,'tutor');row.appendChild(tp);
+    wrap.appendChild(row);scrollChat();
+  }
+  return wrap;
+}
+
+function renderAdultInput(t,tt,accent,mobile){
+  const hasInput = tt==='vision'||tt==='rag';
+  const instrLabel = tt==='image'?'🎨 Image Prompt':tt==='vision'?'🔍 Question / Instruction':tt==='rag'?'❓ Question':'✍️ Instruction to AI';
+  const inputLabel = tt==='vision'?'🖼️ Image URL':tt==='rag'?'📄 Document / Text to analyse':'📥 Input Text (optional)';
+  const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden',background:'#fff',borderRight:'1px solid #e5e5e5'}});
+  p.appendChild(el('div',{className:'ph'},[instrLabel]));
+  const scroll=el('div',{style:{flex:'1',overflow:'auto',padding:'10px',display:'flex',flexDirection:'column',gap:'10px'}});
+  // task description card
+  scroll.appendChild(el('div',{style:{background:'#f8f6ff',border:'1px solid #e0d9ff',borderRadius:'8px',padding:'10px 12px',fontSize:'12px',lineHeight:'1.6',color:'#555'}},[
+    el('div',{style:{fontWeight:'700',color:'#7C3AED',marginBottom:'4px'}},[t.title]),
+    el('div',{},[t.desc]),
+    el('div',{style:{marginTop:'6px',color:'#888',fontSize:'11px'}},['💡 '+t.hints[0]]),
+  ]));
+  // instruction area
+  const instr=document.createElement('textarea');
+  instr.style.cssText='width:100%;min-height:120px;resize:vertical;font-size:13px;border:1px solid #ddd;border-radius:8px;padding:8px;font-family:inherit;line-height:1.5;';
+  instr.value=S.adultInstruction||t.starter_instruction||'';
+  instr.placeholder='Write your instruction to the AI here...';
+  instr.addEventListener('input',ev=>S.adultInstruction=ev.target.value);
+  scroll.appendChild(instr);
+  // input area (for rag/vision)
+  if(hasInput){
+    scroll.appendChild(el('div',{className:'ph',style:{padding:'8px 0 4px',borderTop:'none'}},[inputLabel]));
+    const inp=tt==='vision'?document.createElement('input'):document.createElement('textarea');
+    if(tt==='vision'){
+      inp.type='text';inp.style.cssText='width:100%;font-size:13px;border:1px solid #ddd;border-radius:8px;padding:8px;';
+      inp.placeholder='https://example.com/image.jpg';
+    } else {
+      inp.style.cssText='width:100%;min-height:160px;resize:vertical;font-size:12px;border:1px solid #ddd;border-radius:8px;padding:8px;font-family:inherit;line-height:1.5;';
+      inp.placeholder='Paste document or text here...';
+    }
+    inp.value=S.adultInput||t.starter_input||'';
+    inp.addEventListener('input',ev=>S.adultInput=ev.target.value);
+    scroll.appendChild(inp);
+  }
+  if(!mobile){
+    const runBtn=el('button',{style:{margin:'10px 0',padding:'10px',background:accent,color:'#fff',border:'none',borderRadius:'8px',cursor:'pointer',fontWeight:'700',fontSize:'14px',opacity:S.loading?0.6:1},onClick:runAdultTask},[S.loading?'Running…':'▶ Run']);
+    scroll.appendChild(runBtn);
+  }
+  p.appendChild(scroll);
+  return p;
+}
+
+function renderAdultOutput(t,tt,mobile){
+  const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+  p.appendChild(el('div',{className:'ph'},['▶ Output']));
+  const body=el('div',{style:{flex:'1',overflow:'auto',padding:'12px'}});
+  if(S.loading){
+    body.appendChild(el('div',{style:{color:'#888',fontSize:'13px',padding:'20px',textAlign:'center'}},['⏳ Calling Gemini…']));
+  } else if(tt==='image'&&S.adultImageB64){
+    const img=document.createElement('img');
+    img.src='data:image/png;base64,'+S.adultImageB64;
+    img.style.cssText='max-width:100%;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.1);';
+    body.appendChild(img);
+    const dl=el('button',{style:{marginTop:'10px',padding:'8px 16px',background:'#7C3AED',color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer',fontSize:'12px'},onClick:()=>{
+      const a=document.createElement('a');a.href='data:image/png;base64,'+S.adultImageB64;a.download='generated.png';a.click();
+    }},['⬇ Download Image']);
+    body.appendChild(dl);
+  } else if(S.output){
+    const pre=document.createElement('pre');
+    pre.style.cssText='white-space:pre-wrap;font-size:13px;line-height:1.7;margin:0;font-family:inherit;';
+    pre.textContent=S.output;
+    body.appendChild(pre);
+  } else {
+    body.appendChild(el('div',{style:{color:'#aaa',fontSize:'13px',padding:'30px',textAlign:'center'}},['Hit ▶ Run to see the output']));
+  }
+  p.appendChild(body);
+  return p;
+}
+
+function renderAdultChatbot(t,accent,mobile){
+  const sys=S.chatbotSystem||t.starter_instruction||'';
+  const msgs=S.chatbotMsgs||[];
+  const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+  p.appendChild(el('div',{className:'ph'},['💬 Chatbot — type to test your persona']));
+  if(!msgs.length){
+    const initRow=el('div',{style:{padding:'10px',borderBottom:'1px solid #f0f0f0',background:'#fafafa'}});
+    initRow.appendChild(el('div',{style:{fontSize:'11px',color:'#999',marginBottom:'6px'}},['System Prompt (edit and click Start):']));
+    const ta=document.createElement('textarea');
+    ta.style.cssText='width:100%;min-height:80px;font-size:12px;border:1px solid #ddd;border-radius:6px;padding:6px;resize:vertical;';
+    ta.value=sys;ta.addEventListener('input',ev=>ss({chatbotSystem:ev.target.value,adultInstruction:ev.target.value}));
+    initRow.appendChild(ta);
+    const startBtn=el('button',{style:{marginTop:'6px',padding:'8px 16px',background:accent,color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer',fontWeight:'700'},onClick:()=>{
+      const firstUser=S.adultInput||t.starter_input||'';
+      ss({adultInstruction:S.chatbotSystem,loading:true});
+      runAdultTask();
+    }},['▶ Start Chat']);
+    initRow.appendChild(startBtn);
+    p.appendChild(initRow);
+  }
+  const ca=el('div',{className:'chat-messages',id:'ca'});
+  msgs.forEach(m=>{
+    const msg=el('div',{className:'msg '+(m.role==='user'?'user':'ai')});
+    msg.textContent=m.content;ca.appendChild(msg);
+  });
+  if(S.loading)ca.appendChild(el('div',{className:'msg ai',style:{opacity:'.5'}},['…']));
+  p.appendChild(ca);
+  const ir=el('div',{className:'chat-input-row'});
+  const inp=el('input',{type:'text',placeholder:'Type a message…',value:S.chatInput,onInput:ev=>S.chatInput=ev.target.value});
+  inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')sendChatbotMsg();});
+  ir.appendChild(inp);
+  ir.appendChild(el('button',{className:'send-btn',style:{background:accent},onClick:sendChatbotMsg},[S.loading?el('span',{className:'spin'}):'↗']));
+  p.appendChild(ir);
+  return p;
+}
+
+function appendChat(parent,accent,mode){
+  const isTutor = mode==='tutor';
+  const msgs = isTutor ? S.msgs : (S.chatbotMsgs||[]);
+  const sendFn = isTutor ? sendChat : sendChatbotMsg;
+  const ca=el('div',{className:'chat-messages',id:isTutor?'ca':'ca2'});
+  msgs.forEach(m=>{const msg=el('div',{className:'msg '+(m.role==='user'?'user':'ai')});msg.textContent=m.content;ca.appendChild(msg);});
+  if(S.loading)ca.appendChild(el('div',{className:'msg ai',style:{opacity:'.5'}},['...']));
+  parent.appendChild(ca);
+  const ir=el('div',{className:'chat-input-row'});
+  const inp=el('input',{type:'text',placeholder:isTutor?'Ask for a hint...':'Type a message…',value:S.chatInput,onInput:ev=>S.chatInput=ev.target.value});
+  inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')sendFn();});
+  ir.appendChild(inp);
+  ir.appendChild(el('button',{className:'send-btn',style:{background:accent},onClick:sendFn},[S.loading?el('span',{className:'spin'}):'↗']));
   parent.appendChild(ir);
 }
 
