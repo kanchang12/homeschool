@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockCode</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;color:#111}
+input,select,textarea,button{font-family:inherit;outline:none}
+input[type=text],input[type=password],input[type=number],textarea,select{background:#fff;border:1px solid #ddd;color:#111;padding:7px 10px;border-radius:7px;font-size:14px}
+input:focus,textarea:focus,select:focus{border-color:#888}
+input[type=range]{width:100%;cursor:pointer;accent-color:#7C3AED}
+.app{display:flex;flex-direction:column;min-height:100vh}
+
+/* LOGIN */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:36px 30px;width:100%;max-width:360px;box-shadow:0 4px 20px rgba(0,0,0,.07)}
+.login-logo{font-size:26px;font-weight:700;margin-bottom:4px}
+.login-sub{font-size:13px;color:#888;margin-bottom:28px}
+.login-label{font-size:12px;color:#666;margin-bottom:5px;display:block;font-weight:500}
+.login-input{width:100%;margin-bottom:14px}
+.login-err{font-size:12px;color:#dc2626;margin-bottom:10px}
+.start-btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:600;color:#fff;cursor:pointer;margin-top:6px}
+
+/* TOPBAR */
+.topbar{background:#fff;border-bottom:1px solid #e5e5e5;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0}
+.logo{font-size:15px;font-weight:700}
+.user-pill{font-size:12px;color:#666;background:#f0f0ee;padding:3px 10px;border-radius:12px;flex-shrink:0}
+.topbar-mid{flex:1;min-width:0}
+.run-btn{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;color:#fff;flex-shrink:0}
+.back-btn{font-size:13px;color:#555;border:1px solid #ddd;background:none;padding:7px 13px;border-radius:8px;cursor:pointer;flex-shrink:0;white-space:nowrap}
+
+/* TASKS */
+.tasks-wrap{flex:1;overflow-y:auto;padding:18px}
+.section-title{font-size:18px;font-weight:700;margin-bottom:4px}
+.section-sub{font-size:13px;color:#888;margin-bottom:16px}
+.cat-filter{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px}
+.cat-btn{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #ddd;background:#fff;cursor:pointer;color:#555;transition:all .15s}
+.cat-btn.active{color:#fff;border-color:transparent}
+.tasks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.task-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:13px;cursor:pointer;transition:all .15s}
+.task-card:hover{border-color:#aaa;box-shadow:0 2px 10px rgba(0,0,0,.08);transform:translateY(-1px)}
+.task-card:active{transform:scale(.98)}
+.t-num{font-size:11px;color:#bbb;margin-bottom:2px}
+.t-title{font-size:13px;font-weight:700;margin-bottom:4px;line-height:1.3}
+.t-desc{font-size:11px;color:#777;line-height:1.4}
+.t-cat{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-top:7px}
+
+/* SOLVE */
+.solve-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.main-row{display:flex;flex:1;overflow:hidden}
+.side-panel{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid #e5e5e5}
+.ph{padding:9px 13px;font-size:11px;font-weight:700;color:#999;background:#fafafa;border-bottom:1px solid #e5e5e5;text-transform:uppercase;letter-spacing:.06em;flex-shrink:0}
+.pal-panel{width:190px;background:#fff;flex-shrink:0}
+.canvas-col{flex:1;display:flex;flex-direction:column;border-right:1px solid #e5e5e5;overflow:hidden}
+.tutor-panel{width:290px;background:#fff;flex-shrink:0;display:flex;flex-direction:column}
+.pal-scroll{overflow-y:auto;flex:1;padding:8px}
+.pal-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;cursor:pointer;margin-bottom:5px;border:1px solid #ebebeb;background:#fff;transition:all .15s}
+.pal-item:hover{background:#f5f5f3;border-color:#ccc;transform:translateX(2px)}
+.pal-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.pal-lbl{font-size:12px;font-weight:600;flex:1}
+.canvas-scroll{overflow-y:auto;flex:1;padding:10px;display:flex;flex-direction:column;gap:8px;background:#f5f5f3}
+.empty-hint{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:#ccc;font-size:13px;gap:6px;padding:30px;text-align:center}
+.block-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden}
+.block-hdr{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f0f0f0;background:#fafafa}
+.block-stripe{width:3px;height:18px;border-radius:2px;flex-shrink:0}
+.block-lbl{font-size:12px;font-weight:700;flex:1}
+.blk-btn{width:24px;height:24px;border:none;background:none;cursor:pointer;border-radius:5px;font-size:12px;color:#aaa;transition:background .1s}
+.blk-btn:hover{background:#eee;color:#555}
+.block-params{padding:10px;display:flex;flex-direction:column;gap:8px}
+.p-label{font-size:11px;color:#999;font-weight:600;display:block;margin-bottom:3px}
+.p-input{width:100%;font-size:12px}
+.p-select{width:100%;font-size:12px}
+.p-textarea{width:100%;font-size:12px;resize:vertical;min-height:54px}
+.slider-row{display:flex;align-items:center;gap:8px}
+.slider-row input{flex:1}
+.s-val{font-size:11px;color:#888;min-width:28px;text-align:right}
+.out-panel{flex-shrink:0;border-top:1px solid #e5e5e5;max-height:210px;display:flex;flex-direction:column}
+.out-pre{flex:1;overflow-y:auto;padding:10px 12px;font-family:monospace;font-size:12px;line-height:1.6;white-space:pre;background:#f8f8f6;color:#111}
+.out-empty{padding:12px 13px;font-size:12px;color:#bbb}
+.chat-messages{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;background:#fafafa}
+.msg{max-width:93%;padding:9px 11px;border-radius:10px;font-size:13px;line-height:1.5;white-space:pre-wrap}
+.msg.user{align-self:flex-end;background:#dbeafe;color:#1e3a8a}
+.msg.ai{align-self:flex-start;background:#fff;border:1px solid #e5e5e5;color:#111}
+.chat-input-row{display:flex;gap:6px;padding:8px;border-top:1px solid #e5e5e5;background:#fff;flex-shrink:0}
+.chat-input-row input{flex:1;font-size:13px}
+.send-btn{padding:8px 14px;border-radius:8px;font-size:13px;border:none;cursor:pointer;font-weight:700;color:#fff;flex-shrink:0}
+/* mobile tabs */
+.tab-bar{display:flex;background:#fff;border-bottom:1px solid #e5e5e5;overflow-x:auto;flex-shrink:0}
+.tab{padding:11px 15px;font-size:13px;font-weight:600;color:#aaa;border:none;background:none;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s}
+.tab.active{color:#111;border-bottom-color:currentColor}
+/* spinner */
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+const API = '';  // same origin — FastAPI serves this file
+
+// ── Block palette definitions ─────────────────────────────────────────────
+const KID_PAL = [
+  {type:'print_text', label:'Print Text', emoji:'📝', color:'#059669',
+   params:[{n:'text',l:'Text',t:'text',d:'Hello, AI!'}]},
+  {type:'pattern', label:'Pattern', emoji:'⬛', color:'#0284C7',
+   params:[
+     {n:'shape',l:'Shape',t:'select',opts:[{v:'triangle',l:'Triangle'},{v:'mountain',l:'Mountain'},{v:'diamond',l:'Diamond'},{v:'square',l:'Hollow Square'},{v:'grid',l:'Grid'}],d:'triangle'},
+     {n:'size',l:'Size',t:'num',min:1,max:12,d:5},
+     {n:'char',l:'Character',t:'text',d:'*'}
+   ]},
+  {type:'loop', label:'For Loop', emoji:'🔄', color:'#7C3AED',
+   params:[
+     {n:'start',l:'Start',t:'num',min:0,max:100,d:1},
+     {n:'end',l:'End',t:'num',min:1,max:100,d:10},
+     {n:'action',l:'Print',t:'select',opts:[{v:'number',l:'Number'},{v:'square',l:'Square'},{v:'cube',l:'Cube'}],d:'number'}
+   ]},
+  {type:'math', label:'Math', emoji:'🔢', color:'#D97706',
+   params:[
+     {n:'a',l:'A',t:'num',min:-9999,max:9999,d:12},
+     {n:'op',l:'Op',t:'select',opts:[{v:'+',l:'+'},{v:'-',l:'-'},{v:'*',l:'×'},{v:'/',l:'÷'},{v:'%',l:'%'},{v:'**',l:'**'}],d:'+'},
+     {n:'b',l:'B',t:'num',min:-9999,max:9999,d:34}
+   ]},
+  {type:'string_op', label:'String Op', emoji:'🔡', color:'#BE185D',
+   params:[
+     {n:'text',l:'Text',t:'text',d:'python'},
+     {n:'op',l:'Op',t:'select',opts:[{v:'reverse',l:'Reverse'},{v:'upper',l:'Uppercase'},{v:'lower',l:'Lowercase'},{v:'length',l:'Length'},{v:'count_vowels',l:'Count Vowels'},{v:'word_count',l:'Word Count'},{v:'palindrome',l:'Palindrome?'}],d:'reverse'}
+   ]},
+  {type:'conditional', label:'If / Else', emoji:'🤔', color:'#DC2626',
+   params:[
+     {n:'value',l:'Number',t:'num',min:-9999,max:9999,d:7},
+     {n:'check',l:'Check',t:'select',opts:[{v:'even_odd',l:'Even or Odd'},{v:'prime',l:'Is Prime?'},{v:'positive',l:'Positive/Negative'},{v:'leap',l:'Leap Year?'}],d:'even_odd'}
+   ]},
+  {type:'list_op', label:'List Op', emoji:'📋', color:'#0891B2',
+   params:[
+     {n:'list',l:'Numbers (comma separated)',t:'text',d:'4,9,2,7,1'},
+     {n:'op',l:'Op',t:'select',opts:[{v:'max',l:'Max'},{v:'min',l:'Min'},{v:'sum',l:'Sum'},{v:'avg',l:'Average'},{v:'sort',l:'Sort'},{v:'filter_gt5',l:'Filter >5'}],d:'max'}
+   ]},
+  {type:'fstring', label:'F-String', emoji:'💬', color:'#65A30D',
+   params:[
+     {n:'template',l:'Template (use {name} {place})',t:'text',d:'{name} loves {place}'},
+     {n:'name',l:'Name',t:'text',d:'Ada'},
+     {n:'place',l:'Place',t:'text',d:'space'}
+   ]},
+];
+
+const ADULT_PAL = [
+  {type:'model', label:'Model', emoji:'🤖', color:'#7C3AED',
+   params:[{n:'model',l:'Model',t:'select',opts:[{v:'gemini-2.0-flash',l:'Gemini 2.0 Flash'},{v:'gemini-1.5-pro',l:'Gemini 1.5 Pro'},{v:'gemini-1.5-flash',l:'Gemini 1.5 Flash'}],d:'gemini-2.0-flash'}]},
+  {type:'system', label:'System Prompt', emoji:'⚙️', color:'#0284C7',
+   params:[{n:'prompt',l:'System prompt',t:'textarea',d:'You are a helpful assistant.'}]},
+  {type:'user_msg', label:'User Message', emoji:'💬', color:'#059669',
+   params:[{n:'message',l:'Message',t:'textarea',d:'What is machine learning?'}]},
+  {type:'context', label:'Add Context', emoji:'📄', color:'#0891B2',
+   params:[{n:'context',l:'Context / document',t:'textarea',d:'The user is a beginner learning AI.'}]},
+  {type:'temperature', label:'Temperature', emoji:'🌡️', color:'#D97706',
+   params:[{n:'value',l:'0 = focused  →  1 = creative',t:'slider',min:0,max:1,step:0.1,d:0.7}]},
+  {type:'max_tokens', label:'Max Tokens', emoji:'📏', color:'#BE185D',
+   params:[{n:'tokens',l:'Max tokens',t:'num',min:50,max:2000,d:400}]},
+  {type:'few_shot', label:'Few-Shot', emoji:'🎯', color:'#DC2626',
+   params:[
+     {n:'ex1q',l:'Example 1 — input',t:'text',d:'What is 2+2?'},
+     {n:'ex1a',l:'Example 1 — output',t:'text',d:'4'},
+     {n:'ex2q',l:'Example 2 — input',t:'text',d:'Capital of France?'},
+     {n:'ex2a',l:'Example 2 — output',t:'text',d:'Paris'}
+   ]},
+  {type:'json_mode', label:'JSON Output', emoji:'📦', color:'#0891B2',
+   params:[{n:'schema',l:'Expected fields (comma separated)',t:'text',d:'name, score, reason'}]},
+];
+
+const CAT_COLORS = {coding:'#0284C7',math:'#059669',science:'#7C3AED',english:'#D97706',ai:'#7C3AED',data:'#0284C7',infra:'#059669'};
+
+// ── Kid block execution (runs client-side, no API needed) ─────────────────
+function runKidBlock(b) {
+  const p = b.params;
+  if (b.type === 'print_text') return p.text + '\n';
+  if (b.type === 'pattern') {
+    const n=Math.min(12,Math.max(1,+p.size||5)),c=(p.char||'*')[0]; let o='';
+    if(p.shape==='triangle'){for(let i=1;i<=n;i++)o+=c.repeat(i)+'\n';}
+    else if(p.shape==='mountain'){for(let i=1;i<=n;i++)o+=' '.repeat(n-i)+c.repeat(2*i-1)+'\n';}
+    else if(p.shape==='diamond'){for(let i=1;i<=n;i++)o+=' '.repeat(n-i)+c.repeat(2*i-1)+'\n';for(let i=n-1;i>=1;i--)o+=' '.repeat(n-i)+c.repeat(2*i-1)+'\n';}
+    else if(p.shape==='square'){for(let i=0;i<n;i++){if(i>0&&i<n-1)o+=c+' '.repeat(n-2)+c+'\n';else o+=c.repeat(n)+'\n';}}
+    else if(p.shape==='grid'){for(let i=0;i<n;i++){let r='';for(let j=0;j<n;j++)r+=c+' ';o+=r+'\n';}}
+    return o;
+  }
+  if (b.type === 'loop') {
+    const s=+p.start,e=Math.min(s+50,+p.end+1); let o='';
+    for(let i=s;i<e;i++){if(p.action==='number')o+=i+'\n';else if(p.action==='square')o+=`${i}² = ${i*i}\n`;else o+=`${i}³ = ${i*i*i}\n`;}
+    return o;
+  }
+  if (b.type === 'math') {
+    const a=+p.a,bv=+p.b; let r;
+    if(p.op==='+')r=a+bv;else if(p.op==='-')r=a-bv;else if(p.op==='*')r=a*bv;
+    else if(p.op==='/')r=bv?a/bv:'div/0';else if(p.op==='%')r=bv?a%bv:'mod/0';else r=Math.pow(a,bv);
+    return `${a} ${p.op} ${bv} = ${typeof r==='number'?Math.round(r*10000)/10000:r}\n`;
+  }
+  if (b.type === 'string_op') {
+    const t=p.text;
+    if(p.op==='reverse')return `"${t}" → "${t.split('').reverse().join('')}"\n`;
+    if(p.op==='upper')return `"${t}" → "${t.toUpperCase()}"\n`;
+    if(p.op==='lower')return `"${t}" → "${t.toLowerCase()}"\n`;
+    if(p.op==='length')return `len("${t}") = ${t.length}\n`;
+    if(p.op==='count_vowels'){const v=t.split('').filter(c=>'aeiouAEIOU'.includes(c)).length;return `Vowels in "${t}": ${v}\n`;}
+    if(p.op==='word_count')return `Words in "${t}": ${t.trim().split(/\s+/).length}\n`;
+    if(p.op==='palindrome'){const r=t.toLowerCase().split('').reverse().join('');return `"${t}" → ${t.toLowerCase()===r?'✅ palindrome':'❌ not palindrome'}\n`;}
+  }
+  if (b.type === 'conditional') {
+    const v=+p.value;
+    if(p.check==='even_odd')return `${v} is ${v%2===0?'even':'odd'}\n`;
+    if(p.check==='positive')return `${v} is ${v>0?'positive':v<0?'negative':'zero'}\n`;
+    if(p.check==='leap'){const is=(v%4===0&&v%100!==0)||v%400===0;return `${v} ${is?'✅ IS':'❌ is NOT'} a leap year\n`;}
+    if(p.check==='prime'){if(v<2)return `${v} is not prime\n`;let prime=true;for(let i=2;i<=Math.sqrt(v);i++)if(v%i===0){prime=false;break;}return `${v} ${prime?'✅ prime':'❌ not prime'}\n`;}
+  }
+  if (b.type === 'list_op') {
+    const nums=p.list.split(',').map(x=>+x.trim()).filter(x=>!isNaN(x));
+    if(p.op==='max')return `max = ${Math.max(...nums)}\n`;
+    if(p.op==='min')return `min = ${Math.min(...nums)}\n`;
+    if(p.op==='sum')return `sum = ${nums.reduce((a,b)=>a+b,0)}\n`;
+    if(p.op==='avg')return `avg = ${Math.round(nums.reduce((a,b)=>a+b,0)/nums.length*100)/100}\n`;
+    if(p.op==='sort')return `sorted → [${[...nums].sort((a,b)=>a-b)}]\n`;
+    if(p.op==='filter_gt5')return `>5 → [${nums.filter(x=>x>5)}]\n`;
+  }
+  if (b.type === 'fstring') return p.template.replace('{name}',p.name).replace('{place}',p.place)+'\n';
+  return '';
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+let S = {
+  view:'login', user:null,
+  uname:'', upwd:'', loginErr:'',
+  tasks:[], filteredCat:'all',
+  currentTask:null, canvas:[], msgs:[], chatInput:'',
+  loading:false, output:'', activeTab:'blocks', nextId:1
+};
+function ss(p){S=Object.assign({},S,p);render();}
+
+// ── API helpers ───────────────────────────────────────────────────────────
+async function apiFetch(path, body){
+  const res = await fetch(API+path, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!res.ok){const e=await res.json();throw new Error(e.detail||'Error');}
+  return res.json();
+}
+
+async function loadTasks(role){
+  const res = await fetch(API+`/api/tasks/${role}`);
+  const data = await res.json();
+  return data.tasks;
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────
+async function doLogin(){
+  if(!S.uname||!S.upwd) return;
+  ss({loading:true,loginErr:''});
+  try{
+    const user = await apiFetch('/api/login',{username:S.uname,password:S.upwd});
+    const tasks = await loadTasks(user.role);
+    ss({view:'tasks',user,tasks,loading:false,filteredCat:'all'});
+  }catch(e){ss({loading:false,loginErr:e.message});}
+}
+
+// ── Run canvas ────────────────────────────────────────────────────────────
+async function runCanvas(){
+  if(!S.canvas.length){ss({output:'⚠️ Add some blocks first!'});return;}
+  if(S.user.role==='kid'){
+    let out='';S.canvas.forEach(b=>{out+=`── ${b.emoji} ${b.label} ──\n${runKidBlock(b)}\n`;});
+    ss({output:out.trim(),activeTab:'output'});
+  } else {
+    const msgB=S.canvas.find(b=>b.type==='user_msg');
+    if(!msgB){ss({output:'⚠️ Add a User Message block!'});return;}
+    const modelB=S.canvas.find(b=>b.type==='model');
+    const sysB=S.canvas.find(b=>b.type==='system');
+    const ctxB=S.canvas.find(b=>b.type==='context');
+    const tmpB=S.canvas.find(b=>b.type==='temperature');
+    const tokB=S.canvas.find(b=>b.type==='max_tokens');
+    const fsB=S.canvas.find(b=>b.type==='few_shot');
+    const jB=S.canvas.find(b=>b.type==='json_mode');
+    let sys=sysB?.params?.prompt||'';
+    if(ctxB)sys+=(sys?'\n\n':'')+ctxB.params.context;
+    if(jB)sys+=(sys?'\n\n':'')+'Respond ONLY with valid JSON. Fields: '+jB.params.schema;
+    let userMsg=msgB.params.message;
+    if(fsB)userMsg=`Example 1:\nQ: ${fsB.params.ex1q}\nA: ${fsB.params.ex1a}\n\nExample 2:\nQ: ${fsB.params.ex2q}\nA: ${fsB.params.ex2a}\n\nNow:\nQ: ${userMsg}`;
+    ss({loading:true,output:'⏳ Calling API via backend...',activeTab:'output'});
+    try{
+      const data = await apiFetch('/api/llm',{
+        model: modelB?.params?.model||'claude-haiku-4-5-20251001',
+        system: sys||undefined,
+        messages:[{role:'user',content:userMsg}],
+        temperature: tmpB?parseFloat(tmpB.params.value):0.7,
+        max_tokens: tokB?parseInt(tokB.params.tokens):400,
+      });
+      const txt = data.text || JSON.stringify(data,null,2);
+      let out=`🤖 ${modelB?.params?.model||'gemini-2.0-flash'}\n`;
+      if(sys)out+=`⚙️  ${sys.slice(0,80)}${sys.length>80?'…':''}\n`;
+      out+=`\n─── Response ───\n${txt}`;
+      ss({output:out});
+    }catch(e){ss({output:'❌ '+e.message});}
+    ss({loading:false});
+  }
+}
+
+// ── Tutor ─────────────────────────────────────────────────────────────────
+async function sendChat(){
+  if(!S.chatInput.trim()||S.loading)return;
+  const um=S.chatInput.trim();
+  const newMsgs=[...S.msgs,{role:'user',content:um}];
+  ss({msgs:newMsgs,chatInput:'',loading:true});
+  try{
+    const data = await apiFetch('/api/tutor',{
+      role: S.user.role,
+      task_id: S.currentTask.id,
+      messages: newMsgs.map(m=>({role:m.role,content:m.content})),
+      canvas_blocks: S.canvas.map(b=>b.label),
+      last_output: S.output?.slice(0,200)||'',
+    });
+    const reply = data.text || 'Try again.';
+    ss({msgs:[...newMsgs,{role:'assistant',content:reply}]});
+  }catch(e){ss({msgs:[...newMsgs,{role:'assistant',content:'❌ '+e.message}]});}
+  ss({loading:false});
+}
+
+// ── Block helpers ─────────────────────────────────────────────────────────
+function addBlock(pal){
+  const params={};pal.params.forEach(p=>{params[p.n]=p.d;});
+  ss({canvas:[...S.canvas,{id:S.nextId++,...pal,params,pal}],activeTab:'canvas'});
+}
+function removeBlock(id){ss({canvas:S.canvas.filter(b=>b.id!==id)});}
+function moveBlock(id,dir){
+  const c=[...S.canvas],i=c.findIndex(b=>b.id===id);
+  if(i<0||(dir==='up'&&i===0)||(dir==='down'&&i===c.length-1))return;
+  const sw=dir==='up'?i-1:i+1;[c[i],c[sw]]=[c[sw],c[i]];ss({canvas:c});
+}
+function upParam(id,n,v){ss({canvas:S.canvas.map(b=>b.id===id?{...b,params:{...b.params,[n]:v}}:b)});}
+
+// ── DOM ───────────────────────────────────────────────────────────────────
+function el(tag,attrs,children){
+  const e=document.createElement(tag);
+  for(const[k,v]of Object.entries(attrs||{})){
+    if(k==='style'&&typeof v==='object')Object.assign(e.style,v);
+    else if(k.startsWith('on')&&typeof v==='function')e.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==='className')e.className=v;
+    else e.setAttribute(k,v);
+  }
+  for(const c of[].concat(children||[])){if(c==null)continue;e.appendChild(typeof c==='string'?document.createTextNode(c):c);}
+  return e;
+}
+
+// ── Render: Login ─────────────────────────────────────────────────────────
+function renderLogin(){
+  const card=el('div',{className:'login-card'});
+  card.appendChild(el('div',{className:'login-logo'},['🧱 BlockCode']));
+  card.appendChild(el('div',{className:'login-sub'},['Enter your name and password to start']));
+  card.appendChild(el('label',{className:'login-label'},['Username']));
+  const u=el('input',{type:'text',className:'login-input',placeholder:'kid / adult / admin',value:S.uname,onInput:ev=>S.uname=ev.target.value});
+  u.addEventListener('keydown',ev=>{if(ev.key==='Enter')doLogin();});
+  card.appendChild(u);
+  card.appendChild(el('label',{className:'login-label'},['Password']));
+  const p=el('input',{type:'password',className:'login-input',placeholder:'••••••••',value:S.upwd,onInput:ev=>S.upwd=ev.target.value});
+  p.addEventListener('keydown',ev=>{if(ev.key==='Enter')doLogin();});
+  card.appendChild(p);
+  if(S.loginErr)card.appendChild(el('div',{className:'login-err'},[S.loginErr]));
+  card.appendChild(el('button',{className:'start-btn',style:{background:'#111',opacity:S.loading?0.6:1},onClick:doLogin},[
+    S.loading?el('span',{className:'spin'}):'Sign In →'
+  ]));
+  return el('div',{className:'login-wrap'},[card]);
+}
+
+// ── Render: Tasks ─────────────────────────────────────────────────────────
+function renderTasks(){
+  const isKid=S.user.role==='kid';
+  const accent=isKid?'#059669':'#7C3AED';
+  const tasks=S.filteredCat==='all'?S.tasks:S.tasks.filter(t=>t.cat===S.filteredCat);
+  const cats=['all',...new Set(S.tasks.map(t=>t.cat))];
+  return el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden',minHeight:'100vh'}},[
+    el('div',{className:'topbar'},[
+      el('div',{className:'logo'},['🧱 BlockCode']),
+      el('div',{className:'user-pill'},[`${S.user.name} · ${S.user.role}`]),
+      el('div',{className:'topbar-mid'}),
+      el('button',{className:'back-btn',onClick:()=>ss({view:'login',upwd:''})},['Sign out']),
+    ]),
+    el('div',{className:'tasks-wrap'},[
+      el('div',{className:'section-title'},[isKid?'👦 Python Tasks':'🎓 AI Engineering Tasks']),
+      el('div',{className:'section-sub'},[isKid?`${S.tasks.length} tasks · click to start`:`${S.tasks.length} tasks · build LLM pipelines`]),
+      el('div',{className:'cat-filter'},cats.map(cat=>
+        el('button',{className:'cat-btn'+(S.filteredCat===cat?' active':''),
+          style:S.filteredCat===cat?{background:accent,borderColor:accent}:{},
+          onClick:()=>ss({filteredCat:cat})},[cat==='all'?'All':cat])
+      )),
+      el('div',{className:'tasks-grid'},tasks.map(t=>
+        el('div',{className:'task-card',onClick:()=>startTask(t)},[
+          el('div',{className:'t-num'},[`#${t.id}`]),
+          el('div',{className:'t-title'},[t.title]),
+          el('div',{className:'t-desc'},[t.desc]),
+          el('span',{className:'t-cat',style:{background:(CAT_COLORS[t.cat]||'#888')+'22',color:CAT_COLORS[t.cat]||'#888'}},[t.cat]),
+        ])
+      )),
+    ])
+  ]);
+}
+
+function startTask(task){
+  const isKid=S.user.role==='kid';
+  const msg=isKid
+    ?`🎯 Task #${task.id}: ${task.title}\n\n${task.desc}\n\n💡 Hint: ${task.hints[0]}\n\nAdd blocks from the left, then hit ▶ Run!`
+    :`📋 Task #${task.id}: ${task.title}\n\n${task.desc}\n\n💡 Hint: ${task.hints[0]}\n\nBuild your pipeline, then hit ▶ Run.`;
+  ss({view:'solve',currentTask:task,canvas:[],output:'',msgs:[{role:'assistant',content:msg}],activeTab:'blocks'});
+}
+
+// ── Render: Palette item ──────────────────────────────────────────────────
+function renderPalItem(pb){
+  return el('div',{className:'pal-item',onClick:()=>addBlock(pb)},[
+    el('div',{className:'pal-dot',style:{background:pb.color}}),
+    el('span',{className:'pal-lbl'},[pb.emoji+' '+pb.label]),
+    el('span',{style:{color:'#ddd',fontSize:'16px'}},['+']),
+  ]);
+}
+
+// ── Render: Block card ────────────────────────────────────────────────────
+function renderBlockCard(block){
+  const card=el('div',{className:'block-card'});
+  card.appendChild(el('div',{className:'block-hdr'},[
+    el('div',{className:'block-stripe',style:{background:block.color}}),
+    el('span',{className:'block-lbl'},[block.emoji+' '+block.label]),
+    el('div',{style:{display:'flex',gap:'2px'}},[
+      el('button',{className:'blk-btn',onClick:()=>moveBlock(block.id,'up')},['↑']),
+      el('button',{className:'blk-btn',onClick:()=>moveBlock(block.id,'down')},['↓']),
+      el('button',{className:'blk-btn',style:{color:'#dc2626'},onClick:()=>removeBlock(block.id)},['×']),
+    ])
+  ]));
+  if(block.pal?.params?.length){
+    const wrap=el('div',{className:'block-params'});
+    block.pal.params.forEach(pd=>{
+      const row=el('div',{style:{display:'flex',flexDirection:'column'}});
+      row.appendChild(el('span',{className:'p-label'},[pd.l]));
+      const v=block.params[pd.n];
+      if(pd.t==='slider'){
+        const sr=el('div',{className:'slider-row'});
+        const inp=document.createElement('input');inp.type='range';inp.min=pd.min;inp.max=pd.max;inp.step=pd.step||0.1;inp.value=v;
+        const sv=el('span',{className:'s-val'},[String(v)]);
+        inp.addEventListener('input',ev=>{sv.textContent=ev.target.value;upParam(block.id,pd.n,parseFloat(ev.target.value));});
+        sr.appendChild(inp);sr.appendChild(sv);row.appendChild(sr);
+      } else if(pd.t==='select'){
+        const sel=el('select',{className:'p-select',onChange:ev=>upParam(block.id,pd.n,ev.target.value)},
+          pd.opts.map(o=>{const opt=el('option',{value:o.v},[o.l]);if(o.v===v)opt.setAttribute('selected','');return opt;})
+        );
+        row.appendChild(sel);
+      } else if(pd.t==='textarea'){
+        const ta=document.createElement('textarea');ta.className='p-textarea';ta.value=v;
+        ta.addEventListener('input',ev=>upParam(block.id,pd.n,ev.target.value));
+        row.appendChild(ta);
+      } else {
+        const inp=document.createElement('input');inp.className='p-input';inp.type=pd.t==='num'?'number':'text';inp.value=v;
+        if(pd.min!=null)inp.min=pd.min;if(pd.max!=null)inp.max=pd.max;
+        inp.addEventListener('input',ev=>upParam(block.id,pd.n,ev.target.value));
+        row.appendChild(inp);
+      }
+      wrap.appendChild(row);
+    });
+    card.appendChild(wrap);
+  }
+  return card;
+}
+
+// ── Render: Solve ─────────────────────────────────────────────────────────
+function renderSolve(){
+  const isKid=S.user.role==='kid';
+  const accent=isKid?'#059669':'#7C3AED';
+  const pal=isKid?KID_PAL:ADULT_PAL;
+  const t=S.currentTask;
+  const w=window.innerWidth;
+  const mobile=w<700;
+  const wrap=el('div',{className:'solve-wrap'});
+
+  // Topbar
+  wrap.appendChild(el('div',{className:'topbar'},[
+    el('button',{className:'back-btn',onClick:()=>ss({view:'tasks',canvas:[],output:'',msgs:[]})},['← Tasks']),
+    el('div',{className:'topbar-mid'},[
+      el('div',{style:{fontSize:'13px',fontWeight:'700',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[`#${t?.id} ${t?.title}`]),
+      el('div',{style:{fontSize:'11px',color:'#999',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[t?.desc]),
+    ]),
+    el('button',{className:'run-btn',style:{background:accent,opacity:S.loading?0.6:1},onClick:runCanvas},[
+      S.loading?el('span',{className:'spin'}):'▶ Run'
+    ]),
+  ]));
+
+  if(mobile){
+    const tabs=[['blocks','🧩 Blocks'],['canvas',`📐 (${S.canvas.length})`],['output','▶ Output'],['tutor','🤖 Tutor']];
+    const tabBar=el('div',{className:'tab-bar'});
+    tabs.forEach(([id,label])=>{
+      tabBar.appendChild(el('button',{className:'tab'+(S.activeTab===id?' active':''),
+        style:S.activeTab===id?{color:accent,borderBottomColor:accent}:{},
+        onClick:()=>ss({activeTab:id})},[label]));
+    });
+    wrap.appendChild(tabBar);
+    const content=el('div',{style:{flex:'1',overflow:'hidden',display:'flex',flexDirection:'column'}});
+    if(S.activeTab==='blocks'){
+      const p=el('div',{className:'side-panel',style:{flex:'1',borderRight:'none'}});
+      p.appendChild(el('div',{className:'ph'},['Tap to add a block']));
+      const sc=el('div',{className:'pal-scroll'});pal.forEach(pb=>sc.appendChild(renderPalItem(pb)));
+      p.appendChild(sc);content.appendChild(p);
+    } else if(S.activeTab==='canvas'){
+      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+      p.appendChild(el('div',{className:'ph'},[`Canvas · ${S.canvas.length} blocks`]));
+      if(!S.canvas.length)p.appendChild(el('div',{className:'empty-hint'},['Add blocks from the Blocks tab']));
+      else{const sc=el('div',{className:'canvas-scroll'});S.canvas.forEach(b=>sc.appendChild(renderBlockCard(b)));p.appendChild(sc);}
+      content.appendChild(p);
+    } else if(S.activeTab==='output'){
+      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+      p.appendChild(el('div',{className:'ph'},['Output']));
+      if(S.output)p.appendChild(el('pre',{className:'out-pre',style:{flex:'1',maxHeight:'none'}},[S.output]));
+      else p.appendChild(el('div',{className:'out-empty'},['Hit ▶ Run']));
+      content.appendChild(p);
+    } else {
+      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+      p.appendChild(el('div',{className:'ph'},['AI Tutor']));
+      appendChat(p,accent);
+      content.appendChild(p);
+      scrollChat();
+    }
+    wrap.appendChild(content);
+  } else {
+    // Desktop 3-column
+    const row=el('div',{className:'main-row'});
+    // Palette
+    const pp=el('div',{className:'side-panel pal-panel'});
+    pp.appendChild(el('div',{className:'ph'},['Blocks']));
+    const ps=el('div',{className:'pal-scroll'});pal.forEach(pb=>ps.appendChild(renderPalItem(pb)));
+    pp.appendChild(ps);row.appendChild(pp);
+    // Canvas + Output
+    const cc=el('div',{className:'canvas-col'});
+    const cp=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
+    cp.appendChild(el('div',{className:'ph'},[`Canvas · ${S.canvas.length} block${S.canvas.length!==1?'s':''}`]));
+    if(!S.canvas.length)cp.appendChild(el('div',{className:'empty-hint'},['Tap a block on the left to add it']));
+    else{const sc=el('div',{className:'canvas-scroll'});S.canvas.forEach(b=>sc.appendChild(renderBlockCard(b)));cp.appendChild(sc);}
+    cc.appendChild(cp);
+    const op=el('div',{className:'out-panel'});
+    op.appendChild(el('div',{className:'ph'},['▶ Output']));
+    if(S.output)op.appendChild(el('pre',{className:'out-pre'},[S.output]));
+    else op.appendChild(el('div',{className:'out-empty'},['Hit ▶ Run']));
+    cc.appendChild(op);row.appendChild(cc);
+    // Tutor
+    const tp=el('div',{className:'tutor-panel',style:{width:w<1100?'250px':'290px'}});
+    tp.appendChild(el('div',{className:'ph'},['🤖 AI Tutor']));
+    appendChat(tp,accent);
+    row.appendChild(tp);
+    wrap.appendChild(row);
+    scrollChat();
+  }
+  return wrap;
+}
+
+function appendChat(parent,accent){
+  const ca=el('div',{className:'chat-messages',id:'ca'});
+  S.msgs.forEach(m=>{const msg=el('div',{className:'msg '+(m.role==='user'?'user':'ai')});msg.textContent=m.content;ca.appendChild(msg);});
+  if(S.loading)ca.appendChild(el('div',{className:'msg ai',style:{opacity:'.5'}},['...']));
+  parent.appendChild(ca);
+  const ir=el('div',{className:'chat-input-row'});
+  const inp=el('input',{type:'text',placeholder:'Ask a question or request a hint...',value:S.chatInput,onInput:ev=>S.chatInput=ev.target.value});
+  inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')sendChat();});
+  ir.appendChild(inp);
+  ir.appendChild(el('button',{className:'send-btn',style:{background:accent},onClick:sendChat},[S.loading?el('span',{className:'spin'}):'↗']));
+  parent.appendChild(ir);
+}
+
+function scrollChat(){setTimeout(()=>{const e=document.getElementById('ca');if(e)e.scrollTop=e.scrollHeight;},50);}
+
+// ── Main render ───────────────────────────────────────────────────────────
+function render(){
+  const app=document.getElementById('app');if(!app)return;
+  app.innerHTML='';
+  if(S.view==='login')app.appendChild(renderLogin());
+  else if(S.view==='tasks')app.appendChild(renderTasks());
+  else app.appendChild(renderSolve());
+}
+window.addEventListener('resize',render);
+render();
+</script>
+</body>
+</html>
