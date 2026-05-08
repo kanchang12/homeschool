@@ -224,7 +224,7 @@ async function apiFetch(path, body){
   const res = await fetch(API+path, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(!res.ok){
     let msg='Error';
-    try{const e=await res.json();msg=e.detail||JSON.stringify(e);}catch{msg=await res.text()||'Server error';}
+    try{const txt=await res.text();const e=JSON.parse(txt);msg=e.detail||txt;}catch{msg='Server error';}
     throw new Error(msg);
   }
   return res.json();
@@ -477,119 +477,6 @@ function renderBlockCard(block){
 }
 
 // ── Render: Solve ─────────────────────────────────────────────────────────
-function renderSolve(){
-  const isKid=S.user.role==='kid';
-  const accent=isKid?'#059669':'#7C3AED';
-  const pal=isKid?KID_PAL:ADULT_PAL;
-  const t=S.currentTask;
-  const w=window.innerWidth;
-  const mobile=w<700;
-  const wrap=el('div',{className:'solve-wrap'});
-
-  // Topbar
-  wrap.appendChild(el('div',{className:'topbar'},[
-    el('button',{className:'back-btn',onClick:()=>ss({view:'tasks',canvas:[],output:'',msgs:[]})},['← Tasks']),
-    el('div',{className:'topbar-mid'},[
-      el('div',{style:{fontSize:'13px',fontWeight:'700',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[`#${t?.id} ${t?.title}`]),
-      el('div',{style:{fontSize:'11px',color:'#999',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},[t?.desc]),
-    ]),
-    el('button',{className:'run-btn',style:{background:accent,opacity:S.loading?0.6:1},onClick:()=>{if(!S.canvas.length){ss({output:'⚠️ Add some blocks first!'});return;}let out='';S.canvas.forEach(b=>{out+=`── ${b.emoji} ${b.label} ──\n${runKidBlock(b)}\n`;});ss({output:out.trim(),activeTab:'output'});}},[S.loading?el('span',{className:'spin'}):'▶ Run']),
-  ]));
-
-  if(mobile){
-    const tabs=[['blocks','🧩 Blocks'],['canvas',`📐 (${S.canvas.length})`],['output','▶ Output'],['tutor','🤖 Tutor']];
-    const tabBar=el('div',{className:'tab-bar'});
-    tabs.forEach(([id,label])=>{
-      tabBar.appendChild(el('button',{className:'tab'+(S.activeTab===id?' active':''),
-        style:S.activeTab===id?{color:accent,borderBottomColor:accent}:{},
-        onClick:()=>ss({activeTab:id})},[label]));
-    });
-    wrap.appendChild(tabBar);
-    const content=el('div',{style:{flex:'1',overflow:'hidden',display:'flex',flexDirection:'column'}});
-    if(S.activeTab==='blocks'){
-      const p=el('div',{className:'side-panel',style:{flex:'1',borderRight:'none'}});
-      p.appendChild(el('div',{className:'ph'},['Tap to add a block']));
-      const sc=el('div',{className:'pal-scroll'});pal.forEach(pb=>sc.appendChild(renderPalItem(pb)));
-      p.appendChild(sc);content.appendChild(p);
-    } else if(S.activeTab==='canvas'){
-      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
-      p.appendChild(el('div',{className:'ph'},[`Canvas · ${S.canvas.length} blocks`]));
-      if(!S.canvas.length)p.appendChild(el('div',{className:'empty-hint'},['Add blocks from the Blocks tab']));
-      else{const sc=el('div',{className:'canvas-scroll'});S.canvas.forEach(b=>sc.appendChild(renderBlockCard(b)));p.appendChild(sc);}
-      content.appendChild(p);
-    } else if(S.activeTab==='output'){
-      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
-      p.appendChild(el('div',{className:'ph'},['Output']));
-      if(S.output)p.appendChild(el('pre',{className:'out-pre',style:{flex:'1',maxHeight:'none'}},[S.output]));
-      else p.appendChild(el('div',{className:'out-empty'},['Hit ▶ Run']));
-      content.appendChild(p);
-    } else {
-      const p=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
-      p.appendChild(el('div',{className:'ph'},['AI Tutor']));
-      appendChat(p,accent,'tutor');
-      content.appendChild(p);
-      scrollChat();
-    }
-    wrap.appendChild(content);
-  } else {
-    // Desktop 3-column
-    const row=el('div',{className:'main-row'});
-    // Palette
-    const pp=el('div',{className:'side-panel pal-panel'});
-    pp.appendChild(el('div',{className:'ph'},['Blocks']));
-    const ps=el('div',{className:'pal-scroll'});pal.forEach(pb=>ps.appendChild(renderPalItem(pb)));
-    pp.appendChild(ps);row.appendChild(pp);
-    // Canvas + Output
-    const cc=el('div',{className:'canvas-col'});
-    const cp=el('div',{style:{flex:'1',display:'flex',flexDirection:'column',overflow:'hidden'}});
-    cp.appendChild(el('div',{className:'ph'},[`Canvas · ${S.canvas.length} block${S.canvas.length!==1?'s':''}`]));
-    if(!S.canvas.length)cp.appendChild(el('div',{className:'empty-hint'},['Tap a block on the left to add it']));
-    else{const sc=el('div',{className:'canvas-scroll'});S.canvas.forEach(b=>sc.appendChild(renderBlockCard(b)));cp.appendChild(sc);}
-    cc.appendChild(cp);
-    const op=el('div',{className:'out-panel'});
-    op.appendChild(el('div',{className:'ph'},['▶ Output']));
-    if(S.output)op.appendChild(el('pre',{className:'out-pre'},[S.output]));
-    else op.appendChild(el('div',{className:'out-empty'},['Hit ▶ Run']));
-    cc.appendChild(op);row.appendChild(cc);
-    // Tutor
-    const tp=el('div',{className:'tutor-panel',style:{width:w<1100?'250px':'290px'}});
-    tp.appendChild(el('div',{className:'ph'},['🤖 AI Tutor']));
-    appendChat(tp,accent,'tutor');
-    row.appendChild(tp);
-    wrap.appendChild(row);
-    scrollChat();
-  }
-  return wrap;
-}
-
-function appendChat(parent,accent){
-  const ca=el('div',{className:'chat-messages',id:'ca'});
-  S.msgs.forEach(m=>{const msg=el('div',{className:'msg '+(m.role==='user'?'user':'ai')});msg.textContent=m.content;ca.appendChild(msg);});
-  if(S.loading)ca.appendChild(el('div',{className:'msg ai',style:{opacity:'.5'}},['...']));
-  parent.appendChild(ca);
-  const ir=el('div',{className:'chat-input-row'});
-  const inp=el('input',{type:'text',placeholder:'Ask a question or request a hint...',value:S.chatInput,onInput:ev=>S.chatInput=ev.target.value});
-  inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')sendChat();});
-  ir.appendChild(inp);
-  ir.appendChild(el('button',{className:'send-btn',style:{background:accent},onClick:sendChat},[S.loading?el('span',{className:'spin'}):'↗']));
-  parent.appendChild(ir);
-}
-
-function scrollChat(){setTimeout(()=>{const e=document.getElementById('ca');if(e)e.scrollTop=e.scrollHeight;},50);}
-
-// ── Main render ───────────────────────────────────────────────────────────
-function render(){
-  const app=document.getElementById('app');if(!app)return;
-  app.innerHTML='';
-  if(S.view==='login')app.appendChild(renderLogin());
-  else if(S.view==='tasks')app.appendChild(renderTasks());
-  else app.appendChild(renderSolve());
-}
-window.addEventListener('resize',render);
-render();
-</script>
-</body>
-</html>// ── Render: Solve ─────────────────────────────────────────────────────────
 function renderSolve(){
   const isKid=S.user.role==='kid';
   return isKid ? renderSolveKid() : renderSolveAdult();
